@@ -72,7 +72,7 @@ WINDOW_SIZE = 1000
 
 import soundfile as sf
 
-def writeWav(data):
+def write_wav(data):
     sf.write(f"{out_path}{save_wav}.{SAVE_FILE_TYPE}", data, fs)
 
 
@@ -114,13 +114,13 @@ class Tone:  # class containing tone generator and other tone playing informatio
         self.pulse_width = int((self.velocity / 127) * (max_duty_cycle / 100) * self.period)  # convert velocity to duty cycle (fraction of 1) then multiply by period to get the pulsewidth information
         # adding an offset/minimum on time can help balance out the relative strength of notes
         # should change this to make adjustment have a more continuous range
-        if self.pulseWidth > MAX_PULSE_DURATION:
-            self.pulseWidth = MAX_PULSE_DURATION
+        if self.pulse_width > MAX_PULSE_DURATION:
+            self.pulse_width = MAX_PULSE_DURATION
         if self.pulse_width < MIN_PULSE_DURATION:
             self.pulse_width = MIN_PULSE_DURATION
         self.pulse = np.concatenate((np.ones(self.pulse_width), np.zeros(self.period - self.pulse_width))).tolist()  # single pulse
 
-    def generate(self, gen_time):  # generate for a certain amount of time (in samples)
+    def generate(self, gen_time: int):  # generate for a certain amount of time (in samples)
         num_periods = int(gen_time / self.period) + 2  # the +2 is necessary to create a longer-then needed list that will be trimmed down
         pulses = self.pulse * num_periods  # generate a train of pulses
         init_time = self.time % self.period  # time in pulsetrain to start at (which is the index in a single pulse the last pulse started at)
@@ -129,11 +129,9 @@ class Tone:  # class containing tone generator and other tone playing informatio
         return final
 
 
-time = 0
-tones = []
+tones: list[Tone] = []
 
-
-def findInTones(note):
+def find_in_tones(note):
     for ind in range(len(tones)):
         if tones[ind].note == note:  # could be sped up
             return ind
@@ -159,7 +157,6 @@ import mido
 mid = MidiFile(f"{in_path}{midi}")
 ticks_per_beat = mid.ticks_per_beat  # THIS FIXES ALL THE TEMPO PROBLEMS AHHHHHH
 # print(f"ticks per beat: {ticksPerBeat}")
-time = 0
 tempo_set = False  # whether tempo has been set
 for track in mid.tracks:
     for msg in track[: min((len(track), 10))]:
@@ -186,8 +183,8 @@ if SELECTED_TRACKS_IND == []:
 elif SELECTED_TRACKS_IND == [-1]:
     selected_tracks = mid.tracks
 else:
-    for trackind in SELECTED_TRACKS_IND:
-        selected_tracks.append(mid.tracks[trackind])
+    for track_ind in SELECTED_TRACKS_IND:
+        selected_tracks.append(mid.tracks[track_ind])
 
 
 abs_tick_times = np.zeros(len(selected_tracks)).tolist()  # stores the absolute (not relative) tick value for each track
@@ -195,14 +192,14 @@ mega_track = []
 completed = False
 ind = 0
 while ind <= biggest_len:
-    for trackind, track in enumerate(selected_tracks):
+    for track_ind, track in enumerate(selected_tracks):
         if (ind + 1) <= len(track):
             # do some list manipulation
             # print(track[ind])
-            abs_tick_times[trackind] += track[ind].time
-            newobj = track[ind]
-            newobj.time = abs_tick_times[trackind]
-            mega_track.append(newobj)
+            abs_tick_times[track_ind] += track[ind].time
+            new_obj = track[ind]
+            new_obj.time = abs_tick_times[track_ind]
+            mega_track.append(new_obj)
     ind += 1
 
 mega_track = sorted(mega_track, key=lambda x: x.time)
@@ -220,7 +217,7 @@ for ind, msg in enumerate(mega_track[:MAX_MIDI_IND]):  # will add multiple track
             print(f"processed {ind}/{biggest_len} commands")
             pass
         gen_time = ticks2samples(msg.time - abs_time)  # convert to samples WARNING: midi time is in absolute time rather than relative, so it will not process normal midi that has not run through preprocessing without modification
-        music[curr_samp_time : curr_samp_time + gen_time] = np.where(sum([tone.generate(gen_time) for tone in tones]) > 0, 1, -1)  # maybe could cut down on compute by replacing sum with something
+        music[curr_samp_time : curr_samp_time + gen_time] = np.where(sum([tone.generate(gen_time) for tone in tones]) > 0, 1, 0)  # maybe could cut down on compute by replacing sum with something
         # for more advanced polyphony, modify the sum() and tone.generate (probably mess with the offset time)
         curr_samp_time += gen_time
         abs_time += msg.time - abs_time
@@ -228,15 +225,15 @@ for ind, msg in enumerate(mega_track[:MAX_MIDI_IND]):  # will add multiple track
             # pulseDuration = msg.velocity*pulseCorrectionFactor TODO: possibly add some sort of compensation for the higher and lower frequencies
             tones.append(Tone(msg.note, msg.velocity, msg.channel))  # append note to current note playing
         if msg.type == "note_off":
-            tonetoremove = findInTones(msg.note)
-            if tonetoremove is not None:
-                tones.pop(tonetoremove)  # remove note once it stops playing
+            tone_to_remove = find_in_tones(msg.note)
+            if tone_to_remove is not None:
+                tones.pop(tone_to_remove)  # remove note once it stops playing
     if msg.type == "tempo":
         tempo = msg.tempo
     if msg.type == "pitchwheel":
         for ind in range(len(tones)):
             if tones[ind].channel == msg.channel:
-                tones[ind].changePitch(msg.pitch)
+                tones[ind].change_pitch(msg.pitch)
         # find all tones with same channel attribute and change pitch
 
 
@@ -263,7 +260,7 @@ print(f"with tempo: {tempo} us/beat")
 print(f"completed in {time.monotonic()-dt} seconds.")
 if do_save_wav:
     print(f"saving file as {save_wav}.{SAVE_FILE_TYPE}")
-    writeWav(music)
+    write_wav(music)
 if do_play_music:
     print(f"playing music...")
     play_music(music)
