@@ -20,7 +20,7 @@ parser.add_argument("-d", "--duty_cycle")
 
 args = parser.parse_args()
 
-fs = 44100  # 44100 samples per second
+SAMPLE_RATE = 44100  # 44100 samples per second
 
 path = ""
 if (args.reference_path != None):
@@ -73,11 +73,11 @@ WINDOW_SIZE = 1000
 import soundfile as sf
 
 def write_wav(data):
-    sf.write(f"{out_path}{save_wav}.{SAVE_FILE_TYPE}", data, fs)
+    sf.write(f"{out_path}{save_wav}.{SAVE_FILE_TYPE}", data, SAMPLE_RATE)
 
 
 def ticks2samples(ticks):
-    return int((ticks / ticks_per_beat) * (tempo / 1000000) * fs)  # fixed tempo issue
+    return int((ticks / ticks_per_beat) * (tempo / 1000000) * SAMPLE_RATE)  # fixed tempo issue
 
 
 print(f"converting {midi} to {save_wav}.{SAVE_FILE_TYPE}")
@@ -110,7 +110,7 @@ class Tone:  # class containing tone generator and other tone playing informatio
         return
 
     def set_freq(self, freq):
-        self.period = int(((1 / freq) * fs) / 2)  # period in samples. Dividing by 2 works for some reason
+        self.period = int(((1 / freq) * SAMPLE_RATE) / 2)  # period in samples. Dividing by 2 works for some reason
         self.pulse_width = int((self.velocity / 127) * (max_duty_cycle / 100) * self.period)  # convert velocity to duty cycle (fraction of 1) then multiply by period to get the pulsewidth information
         # adding an offset/minimum on time can help balance out the relative strength of notes
         # should change this to make adjustment have a more continuous range
@@ -144,7 +144,7 @@ def play_music(music):
     audio = audio.astype(np.int16)
 
     # Start playback
-    play_obj = sa.play_buffer(audio, 1, 2, fs)
+    play_obj = sa.play_buffer(audio, 1, 2, SAMPLE_RATE)
 
     # Wait for playback to finish before exiting
     play_obj.wait_done()
@@ -255,7 +255,7 @@ music = np.where((avg >= MAX_DUTY) | (avg <= MIN_DUTY), 0, music[: -WINDOW_SIZE 
 print("postprocessing complete")
 print()
 
-print(f"conversion complete: {len(music)/fs} seconds of music ({len(music)} samples)")
+print(f"conversion complete: {len(music)/SAMPLE_RATE} seconds of music ({len(music)} samples, {len(tracks) - 1} tracks)")
 print(f"with tempo: {tempo} us/beat")
 print(f"completed in {time.monotonic()-dt} seconds.")
 if do_save_wav:
