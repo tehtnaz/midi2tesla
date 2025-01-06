@@ -151,10 +151,10 @@ def play_music(music):
     print(f"song done in {time.monotonic()-dt} seconds")
 
 
-from mido import MidiFile
+from mido import Message
 import mido
 
-mid = MidiFile(f"{in_path}{midi}")
+mid = mido.MidiFile(f"{in_path}{midi}")
 ticks_per_beat = mid.ticks_per_beat  # THIS FIXES ALL THE TEMPO PROBLEMS AHHHHHH
 # print(f"ticks per beat: {ticksPerBeat}")
 tempo_set = False  # whether tempo has been set
@@ -173,11 +173,10 @@ import time
 
 dt = time.monotonic()
 biggest_track = max(mid.tracks, key=len)
-biggest_len = len(biggest_track)
 curr_samp_time = 0
 # preprocessing midi to convert all tracks into one
 
-selected_tracks = []
+selected_tracks: list[list[Message]] = []
 if SELECTED_TRACKS_IND == []:
     selected_tracks.append(biggest_track)
 elif SELECTED_TRACKS_IND == [-1]:
@@ -186,23 +185,24 @@ else:
     for track_ind in SELECTED_TRACKS_IND:
         selected_tracks.append(mid.tracks[track_ind])
 
+# merges all notes into one list, and converts each note to use abs time rather than relative time
+def get_mega_track():
+    abs_tick_times = np.zeros(len(selected_tracks)).tolist()  # stores the absolute (not relative) tick value for each track
+    mega_track: list[Message] = []
+    biggest_len = len(biggest_track)
+    ind = 0
+    while ind <= biggest_len:
+        for track_ind, track in enumerate(selected_tracks):
+            if (ind + 1) <= len(track):
+                # do some list manipulation
+                abs_tick_times[track_ind] += track[ind].time
+                new_obj = track[ind]
+                new_obj.time = abs_tick_times[track_ind]
+                mega_track.append(new_obj)
+        ind += 1
+    return mega_track
 
-abs_tick_times = np.zeros(len(selected_tracks)).tolist()  # stores the absolute (not relative) tick value for each track
-mega_track = []
-completed = False
-ind = 0
-while ind <= biggest_len:
-    for track_ind, track in enumerate(selected_tracks):
-        if (ind + 1) <= len(track):
-            # do some list manipulation
-            # print(track[ind])
-            abs_tick_times[track_ind] += track[ind].time
-            new_obj = track[ind]
-            new_obj.time = abs_tick_times[track_ind]
-            mega_track.append(new_obj)
-    ind += 1
-
-mega_track = sorted(mega_track, key=lambda x: x.time)
+mega_track = sorted(get_mega_track(), key=lambda x: x.time)
 # this midi object now has times stored as absolute times not relative times.
 
 
@@ -255,7 +255,7 @@ music = np.where((avg >= MAX_DUTY) | (avg <= MIN_DUTY), 0, music[: -WINDOW_SIZE 
 print("postprocessing complete")
 print()
 
-print(f"conversion complete: {len(music)/SAMPLE_RATE} seconds of music ({len(music)} samples, {len(tracks) - 1} tracks)")
+print(f"conversion complete: {len(music)/SAMPLE_RATE} seconds of music ({len(music)} samples, {len(mid.tracks) - 1} tracks)")
 print(f"with tempo: {tempo} us/beat")
 print(f"completed in {time.monotonic()-dt} seconds.")
 if do_save_wav:
